@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   type ReactNode,
 } from "react";
 
@@ -20,14 +21,15 @@ interface PatContextValue {
 const PatContext = createContext<PatContextValue | null>(null);
 
 export function PatProvider({ children }: { children: ReactNode }) {
-  const [customPat, setCustomPatState] = useState<string | null>(() => {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("dara-docs-custom-pat");
-  });
-  const [useCustomPat, setUseCustomPat] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("dara-docs-use-custom-pat") === "true";
-  });
+  const [customPat, setCustomPatState] = useState<string | null>(null);
+  const [useCustomPat, setUseCustomPat] = useState(false);
+
+  useEffect(() => {
+    setCustomPatState(localStorage.getItem("dara-docs-custom-pat"));
+    setUseCustomPat(
+      localStorage.getItem("dara-docs-use-custom-pat") === "true"
+    );
+  }, []);
 
   const setCustomPat = useCallback((pat: string) => {
     setCustomPatState(pat);
