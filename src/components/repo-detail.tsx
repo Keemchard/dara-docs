@@ -1,0 +1,282 @@
+"use client";
+
+import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { useState } from "react";
+import type {
+  GitLabProject,
+  GitLabCommit,
+  GitLabBranch,
+  GitLabLanguages,
+} from "@/lib/gitlab";
+import { TimeAgo } from "./time-ago";
+
+type Tab = "readme" | "commits" | "branches";
+
+const LANG_COLORS: Record<string, string> = {
+  TypeScript: "#3178c6",
+  JavaScript: "#f1e05a",
+  Python: "#3572A5",
+  PHP: "#4F5D95",
+  Dart: "#00B4AB",
+  Java: "#b07219",
+  Go: "#00ADD8",
+  Kotlin: "#A97BFF",
+  Swift: "#F05138",
+  CSS: "#563d7c",
+  HTML: "#e34c26",
+  Shell: "#89e051",
+  Dockerfile: "#384d54",
+  Ruby: "#701516",
+  Rust: "#dea584",
+  Vue: "#41b883",
+  SCSS: "#c6538c",
+};
+
+function LanguageBar({ languages }: { languages: GitLabLanguages }) {
+  const entries = Object.entries(languages).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+      <h3 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+        Languages
+      </h3>
+      <div className="mb-3 flex h-2.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+        {entries.map(([lang, pct]) => (
+          <div
+            key={lang}
+            style={{
+              width: `${pct}%`,
+              backgroundColor: LANG_COLORS[lang] || "#6b7280",
+            }}
+            title={`${lang}: ${pct.toFixed(1)}%`}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {entries.map(([lang, pct]) => (
+          <div key={lang} className="flex items-center gap-1.5 text-xs">
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: LANG_COLORS[lang] || "#6b7280" }}
+            />
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">
+              {lang}
+            </span>
+            <span className="text-zinc-400">{pct.toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CommitsList({ commits }: { commits: GitLabCommit[] }) {
+  if (commits.length === 0) {
+    return <p className="py-8 text-center text-sm text-zinc-500">No commits found.</p>;
+  }
+
+  return (
+    <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+      {commits.map((c) => (
+        <div key={c.id} className="py-3.5 first:pt-0 last:pb-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                {c.title}
+              </p>
+              <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                {c.author_name}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                {c.short_id}
+              </code>
+              <TimeAgo date={c.committed_date} className="text-xs text-zinc-400" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function BranchesList({ branches }: { branches: GitLabBranch[] }) {
+  if (branches.length === 0) {
+    return <p className="py-8 text-center text-sm text-zinc-500">No branches found.</p>;
+  }
+
+  return (
+    <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+      {branches.map((b) => (
+        <div key={b.name} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <code className="truncate rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+              {b.name}
+            </code>
+            {b.default && (
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">
+                default
+              </span>
+            )}
+            {b.protected && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                protected
+              </span>
+            )}
+          </div>
+          <TimeAgo date={b.commit.authored_date} className="shrink-0 text-xs text-zinc-400" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function RepoDetail({
+  project,
+  readme,
+  commits,
+  branches,
+  languages,
+}: {
+  project: GitLabProject;
+  readme: string;
+  commits: GitLabCommit[];
+  branches: GitLabBranch[];
+  languages: GitLabLanguages;
+}) {
+  const [activeTab, setActiveTab] = useState<Tab>("readme");
+  const displayName = project.name.replace(/-/g, " ");
+
+  const tabs: { key: Tab; label: string; count?: number }[] = [
+    { key: "readme", label: "README" },
+    { key: "commits", label: "Commits", count: commits.length },
+    { key: "branches", label: "Branches", count: branches.length },
+  ];
+
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <div className="mb-6">
+        <Link
+          href="/"
+          className="mb-3 inline-flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to repositories
+        </Link>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold capitalize tracking-tight text-zinc-900 dark:text-zinc-100">
+              {displayName}
+            </h1>
+            {project.description && (
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                {project.description}
+              </p>
+            )}
+          </div>
+          <a
+            href={project.web_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M22.65 14.39L12 22.13 1.35 14.39a.84.84 0 01-.3-.94l1.22-3.78 2.44-7.51A.42.42 0 014.82 2a.43.43 0 01.58 0 .42.42 0 01.11.18l2.44 7.49h8.1l2.44-7.51A.42.42 0 0118.6 2a.43.43 0 01.58 0 .42.42 0 01.11.18l2.44 7.51L23 13.45a.84.84 0 01-.35.94z" />
+            </svg>
+            View on GitLab
+          </a>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <div className="mb-4 flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
+                  activeTab === tab.key
+                    ? "text-indigo-600 dark:text-indigo-400"
+                    : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+                }`}
+              >
+                {tab.label}
+                {tab.count !== undefined && (
+                  <span className="ml-1.5 text-xs text-zinc-400">
+                    ({tab.count})
+                  </span>
+                )}
+                {activeTab === tab.key && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 dark:bg-indigo-400" />
+                )}
+              </button>
+            ))}
+          </div>
+
+          <div className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+            {activeTab === "readme" && (
+              readme ? (
+                <div className="prose prose-zinc max-w-none dark:prose-invert prose-headings:font-semibold prose-a:text-indigo-600 dark:prose-a:text-indigo-400">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {readme}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <p className="py-8 text-center text-sm text-zinc-500">
+                  No README.md found in this repository.
+                </p>
+              )
+            )}
+            {activeTab === "commits" && <CommitsList commits={commits} />}
+            {activeTab === "branches" && <BranchesList branches={branches} />}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <LanguageBar languages={languages} />
+
+          <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+            <h3 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              Info
+            </h3>
+            <dl className="space-y-2.5 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-zinc-500 dark:text-zinc-400">Default branch</dt>
+                <dd>
+                  <code className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800">
+                    {project.default_branch}
+                  </code>
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-zinc-500 dark:text-zinc-400">Last activity</dt>
+                <dd className="text-zinc-700 dark:text-zinc-300">
+                  <TimeAgo date={project.last_activity_at} />
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-zinc-500 dark:text-zinc-400">Visibility</dt>
+                <dd className="capitalize text-zinc-700 dark:text-zinc-300">
+                  {project.visibility}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-zinc-500 dark:text-zinc-400">Branches</dt>
+                <dd className="text-zinc-700 dark:text-zinc-300">
+                  {branches.length}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
