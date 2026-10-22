@@ -5,6 +5,8 @@ import {
   fetchCommits,
   fetchBranches,
   fetchLanguages,
+  fetchTree,
+  analyzeTree,
 } from "@/lib/gitlab";
 import { RepoDetail } from "@/components/repo-detail";
 
@@ -25,13 +27,16 @@ async function RepoContent({ searchParams }: { searchParams: Promise<{ id?: stri
     );
   }
 
-  const [project, readme, commits, branches, languages] = await Promise.all([
+  const [project, readme, commits, branches, languages, tree] = await Promise.all([
     fetchProject(projectId),
     fetchReadme(projectId),
     fetchCommits(projectId),
     fetchBranches(projectId),
     fetchLanguages(projectId),
+    fetchTree(projectId),
   ]);
+
+  const structure = analyzeTree(tree);
 
   return (
     <RepoDetail
@@ -40,6 +45,7 @@ async function RepoContent({ searchParams }: { searchParams: Promise<{ id?: stri
       commits={commits}
       branches={branches}
       languages={languages}
+      structure={structure}
     />
   );
 }

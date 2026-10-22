@@ -9,10 +9,12 @@ import type {
   GitLabCommit,
   GitLabBranch,
   GitLabLanguages,
+  ProjectStructure,
+  FeatureModule,
 } from "@/lib/gitlab";
 import { TimeAgo } from "./time-ago";
 
-type Tab = "readme" | "commits" | "branches";
+type Tab = "readme" | "features" | "commits" | "branches";
 
 const LANG_COLORS: Record<string, string> = {
   TypeScript: "#3178c6",
@@ -135,24 +137,209 @@ function BranchesList({ branches }: { branches: GitLabBranch[] }) {
   );
 }
 
+function FileIcon() {
+  return (
+    <span
+      className="inline-block text-zinc-400"
+      style={{ width: 14, height: 14, lineHeight: "14px", fontSize: 11 }}
+    >
+      &#128196;
+    </span>
+  );
+}
+
+function FolderIcon() {
+  return (
+    <span
+      className="inline-block text-zinc-400"
+      style={{ width: 14, height: 14, lineHeight: "14px", fontSize: 11 }}
+    >
+      &#128193;
+    </span>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <span
+      className="inline-block text-zinc-400 transition-transform"
+      style={{
+        width: 16,
+        height: 16,
+        lineHeight: "16px",
+        fontSize: 10,
+        transform: open ? "rotate(90deg)" : "rotate(0deg)",
+      }}
+    >
+      &#9654;
+    </span>
+  );
+}
+
+function FeatureCard({ feature, gitlabUrl }: { feature: FeatureModule; gitlabUrl: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="rounded-lg border border-zinc-200 dark:border-zinc-700/60 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center gap-2.5 bg-zinc-50/80 px-4 py-3 text-left transition-colors hover:bg-zinc-100/80 dark:bg-zinc-800/40 dark:hover:bg-zinc-800/70"
+      >
+        <ChevronIcon open={expanded} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-sm font-semibold capitalize text-zinc-900 dark:text-zinc-100">
+              {feature.name.replace(/[-_]/g, " ")}
+            </span>
+            <code className="text-[11px] text-zinc-400 dark:text-zinc-500">
+              {feature.path}/
+            </code>
+          </div>
+          <p className="mt-0.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+            {feature.description}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-500">
+          {feature.mainFiles.length > 0 && (
+            <span>{feature.mainFiles.length} files</span>
+          )}
+          {feature.subComponents.length > 0 && (
+            <span className="rounded bg-zinc-200/70 px-1.5 py-0.5 dark:bg-zinc-700/70">
+              {feature.subComponents.length} sub
+            </span>
+          )}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700/60 dark:bg-zinc-900/50">
+          {feature.mainFiles.length > 0 && (
+            <div className={feature.subComponents.length > 0 ? "mb-4" : ""}>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                Main Components
+              </p>
+              <ul className="space-y-0.5">
+                {feature.mainFiles.map((file) => {
+                  const fileName = file.split("/").pop()!;
+                  return (
+                    <li key={file}>
+                      <a
+                        href={`${gitlabUrl}/-/blob/main/${file}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group/file flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+                      >
+                        <FileIcon />
+                        <span className="font-mono font-medium text-zinc-800 group-hover/file:text-indigo-600 dark:text-zinc-200 dark:group-hover/file:text-indigo-400">
+                          {fileName}
+                        </span>
+                        <span className="hidden truncate text-zinc-400 sm:inline dark:text-zinc-600">
+                          {feature.path}/
+                        </span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {feature.subComponents.length > 0 && (
+            <div>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                Sub-Components
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {feature.subComponents.map((sub) => (
+                  <a
+                    key={sub}
+                    href={`${gitlabUrl}/-/tree/main/${feature.path}/${sub}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:border-indigo-300 hover:text-indigo-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:border-indigo-700 dark:hover:text-indigo-400"
+                  >
+                    <FolderIcon />
+                    {sub}/
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FeaturesTab({
+  structure,
+  gitlabUrl,
+}: {
+  structure: ProjectStructure;
+  gitlabUrl: string;
+}) {
+  if (structure.features.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          No feature modules detected in this repository.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-md bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">
+            {structure.framework}
+          </span>
+          <span className="rounded-md bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300">
+            {structure.projectType}
+          </span>
+        </div>
+        {structure.entryPoints.length > 0 && (
+          <code className="text-[11px] text-zinc-400 dark:text-zinc-500">
+            {structure.entryPoints.map((e) => e.split("/").pop()).join(", ")}
+          </code>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {structure.features.map((feature) => (
+          <FeatureCard
+            key={feature.path}
+            feature={feature}
+            gitlabUrl={gitlabUrl}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function RepoDetail({
   project,
   readme,
   commits,
   branches,
   languages,
+  structure,
 }: {
   project: GitLabProject;
   readme: string;
   commits: GitLabCommit[];
   branches: GitLabBranch[];
   languages: GitLabLanguages;
+  structure: ProjectStructure;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("readme");
   const displayName = project.name.replace(/-/g, " ");
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: "readme", label: "README" },
+    { key: "features", label: "Features", count: structure.features.length },
     { key: "commits", label: "Commits", count: commits.length },
     { key: "branches", label: "Branches", count: branches.length },
   ];
@@ -196,12 +383,12 @@ export function RepoDetail({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <div className="mb-4 flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="mb-4 flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
+                className={`relative shrink-0 px-4 py-2.5 text-sm font-medium transition-colors ${
                   activeTab === tab.key
                     ? "text-indigo-600 dark:text-indigo-400"
                     : "text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
@@ -234,6 +421,9 @@ export function RepoDetail({
                 </p>
               )
             )}
+            {activeTab === "features" && (
+              <FeaturesTab structure={structure} gitlabUrl={project.web_url} />
+            )}
             {activeTab === "commits" && <CommitsList commits={commits} />}
             {activeTab === "branches" && <BranchesList branches={branches} />}
           </div>
@@ -247,6 +437,12 @@ export function RepoDetail({
               Info
             </h3>
             <dl className="space-y-2.5 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-zinc-500 dark:text-zinc-400">Framework</dt>
+                <dd className="font-medium text-zinc-700 dark:text-zinc-300">
+                  {structure.framework}
+                </dd>
+              </div>
               <div className="flex justify-between">
                 <dt className="text-zinc-500 dark:text-zinc-400">Default branch</dt>
                 <dd>
@@ -271,6 +467,12 @@ export function RepoDetail({
                 <dt className="text-zinc-500 dark:text-zinc-400">Branches</dt>
                 <dd className="text-zinc-700 dark:text-zinc-300">
                   {branches.length}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-zinc-500 dark:text-zinc-400">Features</dt>
+                <dd className="text-zinc-700 dark:text-zinc-300">
+                  {structure.features.length} modules
                 </dd>
               </div>
             </dl>
