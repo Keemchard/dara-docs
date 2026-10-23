@@ -11,10 +11,11 @@ import type {
   GitLabLanguages,
   ProjectStructure,
   FeatureModule,
+  DependencyInfo,
 } from "@/lib/gitlab";
 import { TimeAgo } from "./time-ago";
 
-type Tab = "readme" | "features" | "commits" | "branches";
+type Tab = "readme" | "features" | "dependencies" | "commits" | "branches";
 
 const LANG_COLORS: Record<string, string> = {
   TypeScript: "#3178c6",
@@ -319,6 +320,123 @@ function FeaturesTab({
   );
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+    >
+      {copied ? (
+        <>
+          <svg className="h-3.5 w-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Copied!
+        </>
+      ) : (
+        <>
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          Copy All
+        </>
+      )}
+    </button>
+  );
+}
+
+function DependenciesTab({ deps }: { deps: DependencyInfo }) {
+  const runtime = deps.dependencies.filter((d) => !d.dev);
+  const dev = deps.dependencies.filter((d) => d.dev);
+
+  if (deps.dependencies.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          No dependency manifest found (package.json, pubspec.yaml, etc.).
+        </p>
+      </div>
+    );
+  }
+
+  const allDepsText = deps.dependencies.map((d) => d.name).join(", ");
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {deps.framework && (
+            <span className="rounded-md bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white">
+              {deps.framework}
+            </span>
+          )}
+          {deps.runtime && (
+            <span className="rounded-md bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300">
+              {deps.runtime}
+            </span>
+          )}
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">
+            {deps.dependencies.length} total packages
+          </span>
+        </div>
+        <CopyButton text={allDepsText} />
+      </div>
+
+      {runtime.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+            Dependencies ({runtime.length})
+          </h4>
+          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+            {runtime.map((d) => (
+              <div
+                key={d.name}
+                className="flex items-center justify-between rounded-md border border-zinc-100 px-3 py-1.5 dark:border-zinc-800"
+              >
+                <span className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                  {d.name}
+                </span>
+                <code className="ml-2 shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
+                  {d.version}
+                </code>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {dev.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+            Dev Dependencies ({dev.length})
+          </h4>
+          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+            {dev.map((d) => (
+              <div
+                key={d.name}
+                className="flex items-center justify-between rounded-md border border-dashed border-zinc-100 px-3 py-1.5 dark:border-zinc-800"
+              >
+                <span className="truncate text-sm text-zinc-600 dark:text-zinc-400">
+                  {d.name}
+                </span>
+                <code className="ml-2 shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
+                  {d.version}
+                </code>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function RepoDetail({
   project,
   readme,
@@ -326,6 +444,7 @@ export function RepoDetail({
   branches,
   languages,
   structure,
+  deps,
 }: {
   project: GitLabProject;
   readme: string;
@@ -333,6 +452,7 @@ export function RepoDetail({
   branches: GitLabBranch[];
   languages: GitLabLanguages;
   structure: ProjectStructure;
+  deps: DependencyInfo;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("readme");
   const displayName = project.name.replace(/-/g, " ");
@@ -340,6 +460,7 @@ export function RepoDetail({
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: "readme", label: "README" },
     { key: "features", label: "Features", count: structure.features.length },
+    { key: "dependencies", label: "Dependencies", count: deps.dependencies.length },
     { key: "commits", label: "Commits", count: commits.length },
     { key: "branches", label: "Branches", count: branches.length },
   ];
@@ -424,6 +545,9 @@ export function RepoDetail({
             {activeTab === "features" && (
               <FeaturesTab structure={structure} gitlabUrl={project.web_url} />
             )}
+            {activeTab === "dependencies" && (
+              <DependenciesTab deps={deps} />
+            )}
             {activeTab === "commits" && <CommitsList commits={commits} />}
             {activeTab === "branches" && <BranchesList branches={branches} />}
           </div>
@@ -437,12 +561,35 @@ export function RepoDetail({
               Info
             </h3>
             <dl className="space-y-2.5 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-zinc-500 dark:text-zinc-400">Framework</dt>
-                <dd className="font-medium text-zinc-700 dark:text-zinc-300">
-                  {structure.framework}
-                </dd>
-              </div>
+              {deps.framework && (
+                <div className="flex justify-between">
+                  <dt className="text-zinc-500 dark:text-zinc-400">Framework</dt>
+                  <dd className="font-medium text-zinc-700 dark:text-zinc-300">
+                    {deps.framework}
+                  </dd>
+                </div>
+              )}
+              {deps.runtime && (
+                <div className="flex justify-between">
+                  <dt className="text-zinc-500 dark:text-zinc-400">Runtime</dt>
+                  <dd className="font-medium text-zinc-700 dark:text-zinc-300">
+                    {deps.runtime}
+                  </dd>
+                </div>
+              )}
+              {deps.dependencies.length > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-zinc-500 dark:text-zinc-400">Packages</dt>
+                  <dd className="text-zinc-700 dark:text-zinc-300">
+                    {deps.dependencies.filter((d) => !d.dev).length} deps
+                    {deps.dependencies.filter((d) => d.dev).length > 0 && (
+                      <span className="ml-1 text-zinc-400">
+                        + {deps.dependencies.filter((d) => d.dev).length} dev
+                      </span>
+                    )}
+                  </dd>
+                </div>
+              )}
               <div className="flex justify-between">
                 <dt className="text-zinc-500 dark:text-zinc-400">Default branch</dt>
                 <dd>

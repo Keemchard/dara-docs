@@ -480,15 +480,130 @@ function findFeatureRoots(tree: GitLabTreeItem[], framework: string): FeatureRoo
   return roots;
 }
 
+export interface DependencyInfo {
+  framework: string;
+  runtime: string;
+  dependencies: { name: string; version: string; dev: boolean }[];
+}
+
 export interface EnrichedProject {
   project: GitLabProject;
   languages: GitLabLanguages;
   owners: GitLabMember[];
   contributors: GitLabContributor[];
+  deps: DependencyInfo;
   type: "Frontend" | "Backend" | "Fullstack" | "Mobile" | "Other";
 }
 
-const ACCESS_LEVEL_OWNER = 50;
+async function fetchFileRaw(
+  projectId: number,
+  filePath: string,
+  pat?: string
+): Promise<string | null> {
+  const encoded = encodeURIComponent(filePath);
+  const res = await fetch(
+    apiUrl(`/projects/${projectId}/repository/files/${encoded}/raw?ref=main`),
+    { headers: headers(pat), next: { revalidate: 300 } }
+  );
+  if (!res.ok) return null;
+  return res.text();
+}
+
+export async function detectDependencies(
+  projectId: number,
+  pat?: string
+): Promise<DependencyInfo> {
+  const info: DependencyInfo = { framework: "", runtime: "", dependencies: [] };
+
+  const pkgJson = await fetchFileRaw(projectId, "package.json", pat);
+  if (pkgJson) {
+    try {
+      const pkg = JSON.parse(pkgJson);
+      const deps = pkg.dependencies || {};
+      const devDeps = pkg.devDependencies || {};
+
+      for (const [name, version] of Object.entries(deps)) {
+        info.dependencies.push({ name, version: String(version), dev: false });
+      }
+      for (const [name, version] of Object.entries(devDeps)) {
+        info.dependencies.push({ name, version: String(version), dev: true });
+      }
+
+      info.runtime = `Node.js`;
+      if (pkg.engines?.node) info.runtime = `Node.js ${pkg.engines.node}`;
+
+      if (deps["next"]) info.framework = `Next.js ${deps["next"]}`;
+      else if (deps["nuxt"]) info.framework = `Nuxt ${deps["nuxt"]}`;
+      else if (deps["@nestjs/core"]) info.framework = `NestJS ${deps["@nestjs/core"]}`;
+      else if (deps["express"]) info.framework = `Express ${deps["express"]}`;
+      else if (deps["fastify"]) info.framework = `Fastify ${deps["fastify"]}`;
+      else if (deps["react"]) info.framework = `React ${deps["react"]}`;
+      else if (deps["vue"]) info.framework = `Vue ${deps["vue"]}`;
+      else if (deps["svelte"]) info.framework = `Svelte ${deps["svelte"]}`;
+      else if (deps["@angular/core"]) info.framework = `Angular ${deps["@angular/core"]}`;
+    } catch {}
+    return info;
+  }
+
+  const pubspec = await fetchFileRaw(projectId, "pubspec.yaml", pat);
+  if (pubspec) {
+    info.runtime = "Dart / Flutter";
+    info.framework = "Flutter";
+    const depSection = pubspec.split(/^dependencies:/m)[1]?.split(/^\w/m)[0];
+    if (depSection) {
+      const lines = depSection.split("\n").filter((l) => l.trim() && l.startsWith("  "));
+      for (const line of lines) {
+        const match = line.match(/^\s+(\S+):\s*(.+)/);
+        if (match) {
+          info.dependencies.push({ name: match[1], version: match[2].trim(), dev: false });
+        }
+      }
+    }
+    return info;
+  }
+
+  const composer = await fetchFileRaw(projectId, "composer.json", pat);
+  if (composer) {
+    try {
+      const c = JSON.parse(composer);
+      info.runtime = "PHP";
+      if (c.require?.["php"]) info.runtime = `PHP ${c.require["php"]}`;
+      if (c.require?.["laravel/framework"]) info.framework = `Laravel ${c.require["laravel/framework"]}`;
+      else if (c.require?.["symfony/framework-bundle"]) info.framework = "Symfony";
+      else info.framework = "PHP";
+      for (const [name, version] of Object.entries(c.require || {})) {
+        if (name !== "php") {
+          info.dependencies.push({ name, version: String(version), dev: false });
+        }
+      }
+      for (const [name, version] of Object.entries(c["require-dev"] || {})) {
+        info.dependencies.push({ name, version: String(version), dev: true });
+      }
+    } catch {}
+    return info;
+  }
+
+  const requirements = await fetchFileRaw(projectId, "requirements.txt", pat);
+  if (requirements) {
+    info.runtime = "Python";
+    info.framework = "Python";
+    for (const line of requirements.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const match = trimmed.match(/^([^=<>!~\s]+)\s*([=<>!~].+)?/);
+      if (match) {
+        info.dependencies.push({ name: match[1], version: match[2] || "*", dev: false });
+        if (match[1] === "django" || match[1] === "Django") info.framework = "Django";
+        if (match[1] === "flask" || match[1] === "Flask") info.framework = "Flask";
+        if (match[1] === "fastapi" || match[1] === "FastAPI") info.framework = "FastAPI";
+      }
+    }
+    return info;
+  }
+
+  return info;
+}
+
 const ACCESS_LEVEL_MAINTAINER = 40;
 
 export async function fetchEnrichedProjects(pat?: string): Promise<EnrichedProject[]> {
@@ -496,10 +611,11 @@ export async function fetchEnrichedProjects(pat?: string): Promise<EnrichedProje
 
   const enriched = await Promise.all(
     projects.map(async (project) => {
-      const [languages, members, contributors] = await Promise.all([
+      const [languages, members, contributors, deps] = await Promise.all([
         fetchLanguages(project.id, pat),
         fetchMembers(project.id, pat),
         fetchContributors(project.id, pat),
+        detectDependencies(project.id, pat),
       ]);
 
       const owners = members.filter(
@@ -508,7 +624,7 @@ export async function fetchEnrichedProjects(pat?: string): Promise<EnrichedProje
 
       const type = classifyProject(project.path, languages);
 
-      return { project, languages, owners, contributors, type };
+      return { project, languages, owners, contributors, deps, type };
     })
   );
 

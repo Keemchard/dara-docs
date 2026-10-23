@@ -1,7 +1,8 @@
+import { Suspense } from "react";
 import { fetchEnrichedProjects } from "@/lib/gitlab";
 import { Dashboard } from "@/components/dashboard";
 
-export default async function Home() {
+async function HomeContent() {
   let enrichedProjects;
   try {
     enrichedProjects = await fetchEnrichedProjects();
@@ -36,5 +37,32 @@ export default async function Home() {
 
       <Dashboard enrichedProjects={enrichedProjects} />
     </div>
+  );
+}
+
+function HomeSkeleton() {
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <div className="mb-8">
+        <div className="h-8 w-56 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+        <div className="mt-2 h-4 w-40 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-48 animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<HomeSkeleton />}>
+      <HomeContent />
+    </Suspense>
   );
 }

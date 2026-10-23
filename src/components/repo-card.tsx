@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import type { EnrichedProject } from "@/lib/gitlab";
 import { TimeAgo } from "./time-ago";
@@ -33,7 +34,7 @@ const LANG_DOT_COLORS: Record<string, string> = {
 };
 
 export function RepoCard({ data }: { data: EnrichedProject }) {
-  const { project, languages, contributors, type } = data;
+  const { project, languages, contributors, deps, type } = data;
   const slug = project.path;
   const displayName = project.name.replace(/-/g, " ");
 
@@ -43,15 +44,23 @@ export function RepoCard({ data }: { data: EnrichedProject }) {
 
   const topContributors = contributors.slice(0, 3);
 
+  const runtimeDeps = deps.dependencies.filter((d) => !d.dev);
+
+  const [copied, setCopied] = useState(false);
+
+  const copyText = runtimeDeps.map((d) => d.name).join(", ");
+
   return (
-    <Link
-      href={`/repo/${slug}?id=${project.id}`}
-      className="group flex flex-col rounded-xl border border-zinc-200 bg-white p-5 transition-all hover:border-indigo-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-indigo-700"
+    <div
+      className="group relative flex flex-col rounded-xl border border-zinc-200 bg-white p-5 transition-all hover:border-indigo-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-indigo-700"
     >
       <div className="mb-2 flex items-start justify-between gap-2">
-        <h3 className="text-base font-semibold capitalize text-zinc-900 group-hover:text-indigo-600 dark:text-zinc-100 dark:group-hover:text-indigo-400">
+        <Link
+          href={`/repo/${slug}?id=${project.id}`}
+          className="text-base font-semibold capitalize text-zinc-900 group-hover:text-indigo-600 dark:text-zinc-100 dark:group-hover:text-indigo-400 after:absolute after:inset-0 after:content-['']"
+        >
           {displayName}
-        </h3>
+        </Link>
         <span
           className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_STYLES[type]}`}
         >
@@ -65,12 +74,17 @@ export function RepoCard({ data }: { data: EnrichedProject }) {
         </p>
       )}
 
-      {topLangs.length > 0 && (
+      {(deps.framework || topLangs.length > 0) && (
         <div className="mb-3">
           <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
             Tech Stack
           </p>
           <div className="flex flex-wrap gap-1.5">
+            {deps.framework && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200/80 dark:bg-indigo-900/30 dark:text-indigo-400 dark:ring-indigo-700/60">
+                {deps.framework}
+              </span>
+            )}
             {topLangs.map(([lang, pct]) => (
               <span
                 key={lang}
@@ -86,6 +100,15 @@ export function RepoCard({ data }: { data: EnrichedProject }) {
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {runtimeDeps.length > 0 && (
+        <div className="mb-3">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            <span className="font-semibold text-zinc-600 dark:text-zinc-300">{runtimeDeps.length}</span>{" "}
+            {runtimeDeps.length === 1 ? "dependency" : "dependencies"}
+          </p>
         </div>
       )}
 
@@ -118,7 +141,7 @@ export function RepoCard({ data }: { data: EnrichedProject }) {
       )}
 
       <div className="mt-auto flex items-center justify-between border-t border-zinc-100 pt-2.5 dark:border-zinc-800">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           {topLangs.length > 0 && (
             <div className="flex h-1.5 w-16 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
               {topLangs.map(([lang, pct]) => (
@@ -130,12 +153,39 @@ export function RepoCard({ data }: { data: EnrichedProject }) {
               ))}
             </div>
           )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              navigator.clipboard.writeText(copyText);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className="relative z-10 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            title="Copy stack & dependencies"
+          >
+            {copied ? (
+              <>
+                <svg className="h-3 w-3 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                Copied
+              </>
+            ) : (
+              <>
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Copy
+              </>
+            )}
+          </button>
         </div>
         <TimeAgo
           date={project.last_activity_at}
           className="text-xs text-zinc-400 dark:text-zinc-500"
         />
       </div>
-    </Link>
+    </div>
   );
 }
