@@ -74,7 +74,7 @@ export async function fetchProjects(pat?: string): Promise<GitLabProject[]> {
     apiUrl(
       `/groups/${encodedGroup}/projects?per_page=100&include_subgroups=true&order_by=last_activity_at`
     ),
-    { headers: headers(pat), next: { revalidate: 300 } }
+    { headers: headers(pat), next: { revalidate: 60 } }
   );
   if (!res.ok) throw new Error(`GitLab API error: ${res.status}`);
   return res.json();
@@ -86,7 +86,7 @@ export async function fetchProject(
 ): Promise<GitLabProject> {
   const res = await fetch(apiUrl(`/projects/${projectId}`), {
     headers: headers(pat),
-    next: { revalidate: 300 },
+    next: { revalidate: 60 },
   });
   if (!res.ok) throw new Error(`GitLab API error: ${res.status}`);
   return res.json();
@@ -100,7 +100,7 @@ export async function fetchReadme(
     apiUrl(
       `/projects/${projectId}/repository/files/README.md/raw?ref=main`
     ),
-    { headers: headers(pat), next: { revalidate: 300 } }
+    { headers: headers(pat), next: { revalidate: 60 } }
   );
   if (!res.ok) return "";
   return res.text();
@@ -113,7 +113,7 @@ export async function fetchCommits(
 ): Promise<GitLabCommit[]> {
   const res = await fetch(
     apiUrl(`/projects/${projectId}/repository/commits?per_page=${perPage}`),
-    { headers: headers(pat), next: { revalidate: 120 } }
+    { headers: headers(pat), next: { revalidate: 60 } }
   );
   if (!res.ok) return [];
   return res.json();
@@ -125,7 +125,7 @@ export async function fetchBranches(
 ): Promise<GitLabBranch[]> {
   const res = await fetch(
     apiUrl(`/projects/${projectId}/repository/branches?per_page=100`),
-    { headers: headers(pat), next: { revalidate: 300 } }
+    { headers: headers(pat), next: { revalidate: 60 } }
   );
   if (!res.ok) return [];
   return res.json();
@@ -137,7 +137,7 @@ export async function fetchLanguages(
 ): Promise<GitLabLanguages> {
   const res = await fetch(apiUrl(`/projects/${projectId}/languages`), {
     headers: headers(pat),
-    next: { revalidate: 3600 },
+    next: { revalidate: 300 },
   });
   if (!res.ok) return {};
   return res.json();
@@ -149,7 +149,7 @@ export async function fetchMembers(
 ): Promise<GitLabMember[]> {
   const res = await fetch(
     apiUrl(`/projects/${projectId}/members/all?per_page=100`),
-    { headers: headers(pat), next: { revalidate: 3600 } }
+    { headers: headers(pat), next: { revalidate: 300 } }
   );
   if (!res.ok) return [];
   return res.json();
@@ -169,7 +169,7 @@ export async function fetchContributors(
 ): Promise<GitLabContributor[]> {
   const res = await fetch(
     apiUrl(`/projects/${projectId}/repository/contributors?per_page=100&order_by=commits&sort=desc`),
-    { headers: headers(pat), next: { revalidate: 3600 } }
+    { headers: headers(pat), next: { revalidate: 300 } }
   );
   if (!res.ok) return [];
   return res.json();
@@ -198,7 +198,7 @@ export async function fetchTree(
       apiUrl(
         `/projects/${projectId}/repository/tree?recursive=true&per_page=${perPage}&page=${page}${refParam}`
       ),
-      { headers: headers(pat), next: { revalidate: 600 } }
+      { headers: headers(pat), next: { revalidate: 120 } }
     );
     if (!res.ok) break;
     const items: GitLabTreeItem[] = await res.json();

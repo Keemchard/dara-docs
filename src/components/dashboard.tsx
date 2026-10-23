@@ -13,6 +13,19 @@ export function Dashboard({
 }) {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
+  const [activeContributor, setActiveContributor] = useState("All");
+
+  const allContributors = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const ep of enrichedProjects) {
+      for (const c of ep.contributors) {
+        map.set(c.name, (map.get(c.name) || 0) + c.commits);
+      }
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name]) => name);
+  }, [enrichedProjects]);
 
   const filtered = useMemo(() => {
     return enrichedProjects.filter((ep) => {
@@ -27,9 +40,12 @@ export function Dashboard({
           c.name.toLowerCase().includes(search.toLowerCase())
         );
       const matchesType = activeFilter === "All" || ep.type === activeFilter;
-      return matchesSearch && matchesType;
+      const matchesContributor =
+        activeContributor === "All" ||
+        ep.contributors.some((c) => c.name === activeContributor);
+      return matchesSearch && matchesType && matchesContributor;
     });
-  }, [enrichedProjects, search, activeFilter]);
+  }, [enrichedProjects, search, activeFilter, activeContributor]);
 
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -41,7 +57,7 @@ export function Dashboard({
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <input
           type="text"
           placeholder="Search repos, languages, people..."
@@ -71,10 +87,43 @@ export function Dashboard({
         </div>
       </div>
 
+      <div className="mb-6">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+          Contributors
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setActiveContributor("All")}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              activeContributor === "All"
+                ? "bg-emerald-600 text-white"
+                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+            }`}
+          >
+            All
+          </button>
+          {allContributors.map((name) => (
+            <button
+              key={name}
+              onClick={() =>
+                setActiveContributor(activeContributor === name ? "All" : name)
+              }
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                activeContributor === name
+                  ? "bg-emerald-600 text-white"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+              }`}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {filtered.length === 0 ? (
         <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            No repositories match your search.
+            No repositories match your filters.
           </p>
         </div>
       ) : (
