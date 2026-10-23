@@ -21,6 +21,12 @@ export function Navbar() {
           </Link>
 
           <div className="flex items-center gap-3">
+            <Link
+              href="/analytics"
+              className="rounded-md px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            >
+              Analytics
+            </Link>
             <a
               href="https://gitlab.com/globetelecom/platforms/ntg-nai/application/dara"
               target="_blank"
