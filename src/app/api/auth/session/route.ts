@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminAuth } from "@/lib/firebase-admin";
+import { verifyFirebaseToken, createSessionCookie } from "@/lib/firebase-admin";
 import { cookies } from "next/headers";
 
 const SESSION_COOKIE_NAME = "__session";
@@ -11,18 +11,15 @@ export async function POST(req: NextRequest) {
   const { idToken } = await req.json();
 
   try {
-    const adminAuth = getAdminAuth();
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    const domain = decoded.email?.split("@")[1];
+    const payload = await verifyFirebaseToken(idToken);
+    const email = payload.email as string | undefined;
+    const domain = email?.split("@")[1];
 
-    if (!domain || !ALLOWED_DOMAINS.includes(domain)) {
+    if (!email || !domain || !ALLOWED_DOMAINS.includes(domain)) {
       return NextResponse.json({ error: "Unauthorized domain" }, { status: 403 });
     }
 
-    const sessionCookie = await adminAuth.createSessionCookie(idToken, {
-      expiresIn: SESSION_MAX_AGE * 1000,
-    });
-
+    const sessionCookie = await createSessionCookie(email);
     const cookieStore = await cookies();
     cookieStore.set(SESSION_COOKIE_NAME, sessionCookie, {
       maxAge: SESSION_MAX_AGE,

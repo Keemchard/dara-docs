@@ -1,25 +1,33 @@
-import { initializeApp, getApps, cert, type App } from "firebase-admin/app";
-import { getAuth, type Auth } from "firebase-admin/auth";
+import { createRemoteJWKSet, jwtVerify, SignJWT } from "jose";
 
-let _adminAuth: Auth | undefined;
+const GOOGLE_JWKS = createRemoteJWKSet(
+  new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com")
+);
 
-export function getAdminAuth(): Auth {
-  if (_adminAuth) return _adminAuth;
+const FIREBASE_PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!;
+const SESSION_SECRET = new TextEncoder().encode(
+  process.env.SESSION_SECRET || "fallback-dev-secret-change-in-prod"
+);
 
-  const apps = getApps();
-  let app: App;
+const SESSION_MAX_AGE = 60 * 60 * 24 * 5; // 5 days in seconds
 
-  if (apps.length > 0) {
-    app = apps[0];
-  } else {
-    const serviceAccount = JSON.parse(
-      process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "{}"
-    );
-    app = initializeApp({
-      credential: cert(serviceAccount),
-    });
-  }
+export async function verifyFirebaseToken(idToken: string) {
+  const { payload } = await jwtVerify(idToken, GOOGLE_JWKS, {
+    issuer: `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`,
+    audience: FIREBASE_PROJECT_ID,
+  });
+  return payload;
+}
 
-  _adminAuth = getAuth(app);
-  return _adminAuth;
+export async function createSessionCookie(email: string) {
+  return new SignJWT({ email })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(`${SESSION_MAX_AGE}s`)
+    .sign(SESSION_SECRET);
+}
+
+export async function verifySessionCookie(cookie: string) {
+  const { payload } = await jwtVerify(cookie, SESSION_SECRET);
+  return payload;
 }
