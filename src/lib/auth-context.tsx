@@ -40,7 +40,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       auth = getFirebaseAuth();
     } catch {
       setLoading(false);
-      setError("Firebase configuration error. Please check environment variables.");
+      setError(
+        "Firebase configuration error. Please check environment variables.",
+      );
       return;
     }
 
@@ -65,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await firebaseSignOut(auth);
           setUser(null);
           setError(
-            "Access denied. Only @globe.com.ph and @gsupport.com.ph accounts are allowed."
+            "Access denied. Only @globe.com.ph and @gsupport.com.ph accounts are allowed.",
           );
         }
       } else {
