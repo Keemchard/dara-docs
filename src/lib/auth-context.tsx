@@ -49,12 +49,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const domain = firebaseUser.email?.split("@")[1];
         if (domain && ALLOWED_DOMAINS.includes(domain)) {
           const idToken = await firebaseUser.getIdToken();
-          await fetch("/api/auth/session", {
+          const res = await fetch("/api/auth/session", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ idToken }),
           });
-          setUser(firebaseUser);
+          if (res.ok) {
+            setUser(firebaseUser);
+          } else {
+            await firebaseSignOut(auth);
+            setUser(null);
+            setError("Failed to create session. Please try again.");
+          }
         } else {
           await firebaseSignOut(auth);
           setUser(null);
