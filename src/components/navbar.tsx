@@ -1,11 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 import { SettingsModal } from "./settings-modal";
 
 export function Navbar() {
+  const pathname = usePathname();
   const [showSettings, setShowSettings] = useState(false);
+  const { user, signOut } = useAuth();
+
+  if (pathname === "/login") return null;
 
   return (
     <>
@@ -41,6 +47,29 @@ export function Navbar() {
             >
               Settings
             </button>
+
+            {user && (
+              <div className="flex items-center gap-2 border-l border-zinc-200 pl-3 dark:border-zinc-700">
+                {user.photoURL ? (
+                  <img
+                    src={user.photoURL}
+                    alt=""
+                    className="h-7 w-7 rounded-full"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-medium text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
+                    {user.displayName?.[0]?.toUpperCase() ?? "?"}
+                  </div>
+                )}
+                <button
+                  onClick={signOut}
+                  className="rounded-md px-2 py-1 text-xs text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </nav>
