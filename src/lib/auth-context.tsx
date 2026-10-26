@@ -35,7 +35,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signingOut = useRef(false);
 
   useEffect(() => {
-    return onAuthStateChanged(getFirebaseAuth(), async (firebaseUser) => {
+    let auth;
+    try {
+      auth = getFirebaseAuth();
+    } catch {
+      setLoading(false);
+      setError("Firebase configuration error. Please check environment variables.");
+      return;
+    }
+
+    return onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const domain = firebaseUser.email?.split("@")[1];
         if (domain && ALLOWED_DOMAINS.includes(domain)) {
@@ -47,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
           setUser(firebaseUser);
         } else {
-          await firebaseSignOut(getFirebaseAuth());
+          await firebaseSignOut(auth);
           setUser(null);
           setError(
             "Access denied. Only @globe.com.ph and @gsupport.com.ph accounts are allowed."
